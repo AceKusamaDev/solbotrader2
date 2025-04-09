@@ -104,14 +104,18 @@ const BotControl = () => {
     updateSettingsInStore({ [name]: parsedValue });
   };
 
-  // --- Trading Logic Callbacks (Placeholders / To be fully implemented in Phase 3) ---
+  // --- Trading Logic Callbacks (COMMENTED OUT FOR DEBUGGING #185) ---
 
+  /*
   const fetchCurrentPrice = useCallback(async (fetchPair: string): Promise<number | null> => {
     // Placeholder - actual implementation in Phase 2/3
     console.warn("fetchCurrentPrice needs implementation (GeckoTerminal)");
     return Math.random() * 100 + 50; // Return dummy price for now
   }, []);
+  */
 
+  /*
+  // Function to handle stop loss - COMMENTED OUT FOR DEBUGGING #185
   const handleStopLoss = useCallback(async (position: Position, currentPrice: number): Promise<boolean> => {
     // Placeholder - actual implementation in Phase 3
     console.warn("handleStopLoss needs full implementation");
@@ -127,7 +131,10 @@ const BotControl = () => {
     }
     return false;
   }, [removePosition]); // Minimal dependencies for now
+  */
 
+  /*
+  // Execute a real trade using Jupiter - COMMENTED OUT FOR DEBUGGING #185
   const executeRealTrade = useCallback(async (tradeAction: 'buy' | 'sell') => {
     // Placeholder - actual implementation in Phase 3
     console.warn("executeRealTrade needs full implementation");
@@ -155,6 +162,7 @@ const BotControl = () => {
     addPosition(newPosition);
     setIsProcessingTrade(false);
   }, [isProcessingTrade, publicKey, sendTransaction, addTradeHistory, addPosition, setError]); // Minimal dependencies for now
+  */
 
 
   // TODO: Add useEffect hook here to manage the trading loop based on 'status'
@@ -165,8 +173,8 @@ const BotControl = () => {
 
   // Determine if bot is active using status from store
   const isActive = status === 'running' || status === 'analyzing';
-  // Get the latest trade from store history for display
-  const latestTrade = tradeHistory.length > 0 ? tradeHistory[0] : null;
+  // Get the latest trade from store history for display (Keep this for now, might not be the cause)
+  // const latestTrade = tradeHistory.length > 0 ? tradeHistory[0] : null; // Commented out for debugging
 
   return (
     <div className="bg-gray-800 p-6 rounded-lg shadow-lg space-y-4">
@@ -328,7 +336,8 @@ const BotControl = () => {
         </div>
       )}
 
-      {/* Active Positions Display - Reads from Zustand */}
+      {/* Active Positions Display - COMMENTED OUT FOR DEBUGGING #185 */}
+      {/*
       {activePositions.length > 0 && (
         <div className="mt-4">
           <h3 className="font-bold mb-2 text-white">Active Positions</h3>
@@ -350,8 +359,10 @@ const BotControl = () => {
           </div>
         </div>
       )}
+      */}
 
-      {/* Last Trade Display - Reads from Zustand */}
+      {/* Last Trade Display - COMMENTED OUT FOR DEBUGGING #185 */}
+      {/*
       {latestTrade && (
         <div className="mt-4">
           <h3 className="font-bold mb-2 text-white">Last Trade</h3>
@@ -382,8 +393,10 @@ const BotControl = () => {
           </div>
         </div>
       )}
+      */}
 
-      {/* Recent Trades Display - Reads from Zustand */}
+      {/* Recent Trades Display - COMMENTED OUT FOR DEBUGGING #185 */}
+      {/*
       {tradeHistory.length > 0 && (
         <div className="mt-4">
           <h3 className="font-bold mb-2 text-white">Recent Trades</h3>
@@ -417,6 +430,7 @@ const BotControl = () => {
           </div>
         </div>
       )}
+      */}
     </div>
   );
 };
