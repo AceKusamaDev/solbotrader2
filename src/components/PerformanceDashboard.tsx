@@ -9,11 +9,17 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  ResponsiveContainer
+  ResponsiveContainer,
 } from 'recharts';
-import useJupiterTrading from '@/lib/jupiter';
+// Remove unused Jupiter hook import if wallet info isn't needed directly here
+// import useJupiterTrading from '@/lib/jupiter';
+import { useConnection, useWallet } from '@solana/wallet-adapter-react'; // Import useConnection and useWallet
+// Import Zustand store and types
+import useBotStore, { Trade } from '@/store/useBotStore';
+import { Position } from '@/lib/safetyFeatures'; // Import Position type
 
-interface Trade {
+// Remove local Trade/Position interfaces if using store types
+/* interface Trade {
   id: string;
   pair: string;
   side: string;
@@ -34,42 +40,48 @@ interface Position {
   currentPrice: number;
   pnl: number;
   timestamp: string;
-}
+} */
 
 interface PnLDataPoint {
   time: string;
   pnl: number;
 }
 
-interface PerformanceDashboardProps {
-  allocatedCapital?: number;
-  maxDrawdown?: number;
-  profitTarget?: number;
-  slippage?: number;
-  tradeHistory?: any[];
-  activePositions?: any[];
-}
+// Remove props interface
+// interface PerformanceDashboardProps { ... }
 
-export default function PerformanceDashboard({
-  allocatedCapital = 0.05,
-  maxDrawdown = 20,
-  profitTarget = 30,
-  slippage = 0.5,
-  tradeHistory = [],
-  activePositions = []
-}: PerformanceDashboardProps) {
+// Remove props from function signature
+export default function PerformanceDashboard() {
+  // Get state from Zustand store
+  const {
+    activePositions, // Use directly from store
+    tradeHistory,    // Use directly from store
+    settings,        // Get settings for display in Account tab
+    // status: botStatus, // Get bot status from store - remove if not used directly
+  } = useBotStore((state) => ({
+    activePositions: state.activePositions,
+    tradeHistory: state.tradeHistory,
+    settings: state.settings,
+    // status: state.status, // Remove if not used directly
+  }));
+
+  // Get wallet info and connection directly using hooks
+  const { publicKey: walletPublicKey, connected: isWalletConnected } = useWallet();
+  const { connection } = useConnection(); // Get the configured connection object
+
+  // Local state for UI and derived data
   const [activeTab, setActiveTab] = useState<'livePnL' | 'openPositions' | 'recentTrades' | 'account'>('livePnL');
-  const [botStatus, setBotStatus] = useState<'ready' | 'running' | 'stopped'>('ready');
-  const [pnlData, setPnlData] = useState<PnLDataPoint[]>([]);
-  const [totalPnl, setTotalPnl] = useState<number>(0);
-  const [walletBalance, setWalletBalance] = useState<number | null>(null);
-  const [trades, setTrades] = useState<Trade[]>([]);
-  const [positions, setPositions] = useState<Position[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Get Jupiter trading functions and wallet info
-  const { isWalletConnected, walletPublicKey } = useJupiterTrading();
-  
+  const [pnlData, setPnlData] = useState<PnLDataPoint[]>([]); // Keep for chart formatting
+  const [totalPnl, setTotalPnl] = useState<number>(0); // Keep for display calculation
+  const [walletBalance, setWalletBalance] = useState<number | null>(null); // Keep for Account tab display
+  const [error, setError] = useState<string | null>(null); // Keep for local fetch errors (e.g., balance fetch)
+  // Remove local state for trades and positions
+  // const [trades, setTrades] = useState<Trade[]>([]);
+  // const [positions, setPositions] = useState<Position[]>([]);
+  // Remove local botStatus state
+  // const [botStatus, setBotStatus] = useState<'ready' | 'running' | 'stopped'>('ready');
+
+
   // Initialize with empty PnL data
   useEffect(() => {
     const hours = Array.from({ length: 8 }, (_, i) => {
@@ -84,136 +96,76 @@ export default function PerformanceDashboard({
     
     setPnlData(initialPnlData);
   }, []);
-  
-  // Update trades and positions from props
+
+  // Update derived state (like PnL) based on store changes
   useEffect(() => {
-    if (tradeHistory && tradeHistory.length > 0) {
-      const formattedTrades = tradeHistory.map((trade, index) => ({
-        id: trade.id || `trade-${index}`,
-        pair: trade.pair,
-        side: trade.action,
-        amount: trade.amount,
-        price: parseFloat(trade.price) || 0,
-        timestamp: trade.timestamp,
-        status: trade.success ? 'completed' : 'failed',
-        pnl: 0, // Will be calculated later
-        signature: trade.signature
-      }));
-      
-      setTrades(formattedTrades);
-      
-      // Calculate total PnL based on trades
-      let calculatedPnl = 0;
-      formattedTrades.forEach(trade => {
-        if (trade.status === 'completed') {
-          // Simple PnL calculation for demonstration
-          calculatedPnl += trade.side === 'buy' ? -trade.amount : trade.amount;
-        }
-      });
-      
-      setTotalPnl(calculatedPnl);
-      
-      // Update PnL data for chart
-      if (formattedTrades.length > 0) {
-        const newPnlData = [...pnlData];
-        const lastIndex = Math.min(formattedTrades.length, newPnlData.length) - 1;
-        newPnlData[lastIndex].pnl = calculatedPnl;
-        setPnlData(newPnlData);
+    // Calculate total PnL based on store's tradeHistory
+    // TODO: Implement a more accurate PnL calculation based on entry/exit prices
+    let calculatedPnl = 0;
+    tradeHistory.forEach(trade => {
+      if (trade.success && trade.pnl !== undefined) { // Check if PnL exists
+        calculatedPnl += trade.pnl;
+      } else if (trade.success) {
+        // Simple PnL calculation placeholder if trade.pnl is not set
+        // This needs refinement based on how PnL is calculated upon trade closure
+        // calculatedPnl += trade.action === 'buy' ? -trade.amount : trade.amount; // Example placeholder
+      }
+    });
+    setTotalPnl(calculatedPnl); // Update local PnL state
+
+    // Update PnL data for chart (example - needs real data source/logic)
+    if (tradeHistory.length > 0) {
+      const newPnlData = [...pnlData]; // Use existing pnlData structure
+      const lastIndex = Math.min(tradeHistory.length, newPnlData.length) - 1;
+      if (lastIndex >= 0) {
+         newPnlData[lastIndex].pnl = calculatedPnl; // Update last point
+         setPnlData(newPnlData);
       }
     }
-    
-    if (activePositions && activePositions.length > 0) {
-      const formattedPositions = activePositions.map((position, index) => ({
-        id: position.id || `position-${index}`,
-        pair: position.pair,
-        side: position.action,
-        amount: position.amount,
-        entryPrice: position.entryPrice,
-        currentPrice: position.entryPrice, // Will be updated with real data
-        pnl: 0, // Will be calculated later
-        timestamp: position.timestamp
-      }));
-      
-      setPositions(formattedPositions);
-    }
-  }, [tradeHistory, activePositions]);
-  
-  // Fetch wallet balance
+    // No need to set local trades/positions state anymore
+    /*
+    if (tradeHistory && tradeHistory.length > 0) { ... setTrades ... }
+    if (activePositions && activePositions.length > 0) { ... setPositions ... }
+    */
+  }, [tradeHistory, pnlData]); // Depend on store's tradeHistory and local pnlData structure
+
+  // Fetch wallet balance using the connection from the wallet adapter context
   useEffect(() => {
     const fetchWalletBalance = async () => {
-      if (isWalletConnected && walletPublicKey) {
+      // Use connection object from useConnection hook
+      if (isWalletConnected && walletPublicKey && connection) {
         try {
-          const response = await fetch(`https://api.mainnet-beta.solana.com`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              "jsonrpc": "2.0",
-              "id": 1,
-              "method": "getBalance",
-              "params": [walletPublicKey]
-            })
-          });
-          
-          const data = await response.json();
-          if (data.result?.value) {
-            setWalletBalance(data.result.value / 1000000000); // Convert lamports to SOL
-          }
+          // Use connection.getBalance method
+          const balanceLamports = await connection.getBalance(walletPublicKey);
+          setWalletBalance(balanceLamports / 1000000000); // Convert lamports to SOL
         } catch (error) {
           console.error('Error fetching wallet balance:', error);
           setError('Failed to fetch wallet balance');
         }
+      } else {
+        setWalletBalance(null); // Reset balance if wallet disconnects
       }
     };
-    
+
     fetchWalletBalance();
-    
+
     // Fetch balance every 30 seconds
     const intervalId = setInterval(fetchWalletBalance, 30000);
-    
+
     return () => clearInterval(intervalId);
-  }, [isWalletConnected, walletPublicKey]);
-  
-  // Fetch current SOL price
+  }, [isWalletConnected, walletPublicKey, connection]); // Add connection to dependency array
+
+  // Remove the redundant CoinGecko price fetching useEffect
+  /*
   useEffect(() => {
-    const fetchSolPrice = async () => {
-      try {
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
-        const data = await response.json();
-        
-        if (data && data.solana && data.solana.usd) {
-          // Update positions with current price
-          setPositions(prevPositions => 
-            prevPositions.map(position => {
-              const currentPrice = data.solana.usd;
-              const priceDiff = position.side === 'buy' 
-                ? currentPrice - position.entryPrice 
-                : position.entryPrice - currentPrice;
-              const pnl = priceDiff * position.amount;
-              
-              return {
-                ...position,
-                currentPrice,
-                pnl
-              };
-            })
-          );
-        }
-      } catch (error) {
-        console.error('Error fetching SOL price:', error);
-      }
-    };
-    
-    fetchSolPrice();
-    
-    // Fetch price every minute
-    const intervalId = setInterval(fetchSolPrice, 60000);
-    
-    return () => clearInterval(intervalId);
+    // ... removed fetchSolPrice logic ...
   }, []);
-  
-  // Calculate actual allocated capital
-  const actualAllocatedCapital = walletBalance !== null ? walletBalance : allocatedCapital;
-  
+  */
+
+  // Use settings from store for display where applicable
+  // const { allocatedCapital, maxDrawdown, profitTarget, slippage } = settings; // Remove these if not in store yet
+  const displayAllocatedCapital = walletBalance !== null ? walletBalance : 0; // Default to 0 if balance not fetched
+
   return (
     <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
       {error && (
@@ -288,7 +240,8 @@ export default function PerformanceDashboard({
         {activeTab === 'openPositions' && (
           <div>
             <h3 className="text-xl font-bold text-white mb-4">Open Positions</h3>
-            {positions.length > 0 ? (
+            {/* Use activePositions from store */}
+            {activePositions.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-700">
                   <thead className="bg-gray-700">
@@ -297,23 +250,35 @@ export default function PerformanceDashboard({
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Side</th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Amount</th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Entry Price</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Current PnL</th>
+                      {/* PnL calculation needs current price - display placeholder or calculate if price available */}
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Unrealized PnL</th>
                     </tr>
                   </thead>
                   <tbody className="bg-gray-800 divide-y divide-gray-700">
-                    {positions.map((position) => (
-                      <tr key={position.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{position.pair}</td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${position.side === 'buy' ? 'text-green-500' : 'text-red-500'}`}>
-                          {position.side.toUpperCase()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{position.amount}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${position.entryPrice.toFixed(2)}</td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${position.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                          {position.pnl >= 0 ? '+' : ''}{position.pnl.toFixed(2)} SOL
-                        </td>
-                      </tr>
-                    ))}
+                    {/* Map over storeActivePositions */}
+                    {activePositions.map((position) => {
+                       // TODO: Calculate PnL based on current price fetched elsewhere
+                       const currentPrice = position.entryPrice; // Placeholder - needs real-time price
+                       const priceDiff = position.action === 'buy'
+                         ? currentPrice - position.entryPrice
+                         : position.entryPrice - currentPrice;
+                       const pnl = priceDiff * position.amount; // Simple PnL placeholder
+
+                       return (
+                         <tr key={position.id}>
+                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{position.pair}</td>
+                           <td className={`px-6 py-4 whitespace-nowrap text-sm ${position.action === 'buy' ? 'text-green-500' : 'text-red-500'}`}>
+                             {position.action.toUpperCase()}
+                           </td>
+                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{position.amount}</td>
+                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${position.entryPrice.toFixed(4)}</td>
+                           <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                             {/* Display calculated PnL */}
+                             {pnl >= 0 ? '+' : ''}{pnl.toFixed(4)} {/* Assuming PnL in quote currency? Needs clarification */}
+                           </td>
+                         </tr>
+                       );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -326,7 +291,8 @@ export default function PerformanceDashboard({
         {activeTab === 'recentTrades' && (
           <div>
             <h3 className="text-xl font-bold text-white mb-4">Recent Trades</h3>
-            {trades.length > 0 ? (
+            {/* Use tradeHistory from store */}
+            {tradeHistory.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-700">
                   <thead className="bg-gray-700">
@@ -341,34 +307,36 @@ export default function PerformanceDashboard({
                     </tr>
                   </thead>
                   <tbody className="bg-gray-800 divide-y divide-gray-700">
-                    {trades.map((trade) => (
+                     {/* Map over storeTradeHistory */}
+                    {tradeHistory.map((trade) => (
                       <tr key={trade.id}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                           {new Date(trade.timestamp).toLocaleTimeString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{trade.pair}</td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${trade.side === 'buy' ? 'text-green-500' : 'text-red-500'}`}>
-                          {trade.side.toUpperCase()}
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${trade.action === 'buy' ? 'text-green-500' : 'text-red-500'}`}>
+                          {trade.action.toUpperCase()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{trade.amount}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${trade.price.toFixed(2)}</td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${trade.status === 'completed' ? 'text-green-500' : 'text-red-500'}`}>
-                          {trade.status}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${Number(trade.price).toFixed(4)}</td>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${trade.success ? 'text-green-500' : 'text-red-500'}`}>
+                          {trade.success ? 'Completed' : 'Failed'} {/* Use Completed/Failed */}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                          {trade.signature && !trade.signature.startsWith('simulated') ? (
-                            <a 
-                              href={`https://solscan.io/tx/${trade.signature}`} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="text-blue-400 hover:underline"
-                            >
-                              View
-                            </a>
-                          ) : (
-                            <span className="text-gray-500">N/A</span>
-                          )}
-                        </td>
+                         {/* Add Transaction Link Column */}
+                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                           {trade.signature && !trade.signature.startsWith('sim') ? (
+                             <a
+                               href={`https://solscan.io/tx/${trade.signature}`}
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               className="text-blue-400 hover:underline"
+                             >
+                               View
+                             </a>
+                           ) : (
+                             <span className="text-gray-500">N/A</span>
+                           )}
+                         </td>
                       </tr>
                     ))}
                   </tbody>
@@ -385,35 +353,40 @@ export default function PerformanceDashboard({
             <h3 className="text-xl font-bold text-white mb-4">Account</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-gray-700 p-4 rounded-lg">
-                <div className="text-sm text-gray-400">Allocated Capital</div>
-                <div className="text-xl font-bold text-white">{actualAllocatedCapital.toFixed(4)} SOL</div>
+                <div className="text-sm text-gray-400">Wallet Balance</div>
+                <div className="text-xl font-bold text-white">
+                    {walletBalance !== null ? `${walletBalance.toFixed(4)} SOL` : 'Loading...'}
+                </div>
               </div>
-              <div className="bg-gray-700 p-4 rounded-lg">
-                <div className="text-sm text-gray-400">Max Drawdown</div>
-                <div className="text-xl font-bold text-white">{maxDrawdown}%</div>
-              </div>
-              <div className="bg-gray-700 p-4 rounded-lg">
-                <div className="text-sm text-gray-400">Profit Target</div>
-                <div className="text-xl font-bold text-white">{profitTarget}%</div>
-              </div>
-              <div className="bg-gray-700 p-4 rounded-lg">
-                <div className="text-sm text-gray-400">Slippage</div>
-                <div className="text-xl font-bold text-white">{slippage}%</div>
-              </div>
+               {/* Display settings from store */}
+               <div className="bg-gray-700 p-4 rounded-lg">
+                 <div className="text-sm text-gray-400">Stop Loss Setting</div>
+                 <div className="text-xl font-bold text-white">{settings.stopLossPercentage}%</div>
+               </div>
+               <div className="bg-gray-700 p-4 rounded-lg">
+                 <div className="text-sm text-gray-400">Take Profit Setting</div>
+                 <div className="text-xl font-bold text-white">{settings.takeProfitPercentage}%</div>
+               </div>
+               <div className="bg-gray-700 p-4 rounded-lg">
+                 <div className="text-sm text-gray-400">Trading Pair</div>
+                 <div className="text-xl font-bold text-white">{settings.pair}</div>
+               </div>
               {walletPublicKey && (
                 <div className="bg-gray-700 p-4 rounded-lg col-span-2">
-                  <div className="text-sm text-gray-400">Wallet Address</div>
+                  <div className="text-sm text-gray-400">Connected Wallet</div>
                   <div className="text-md font-mono text-white truncate">
-                    {walletPublicKey}
+                    {walletPublicKey?.toBase58() ?? 'Not Connected'} {/* Display wallet key */}
                   </div>
-                  <a 
-                    href={`https://solscan.io/account/${walletPublicKey}`} 
-                    target="_blank" 
+                  {walletPublicKey && ( // Only show link if connected
+                    <a
+                      href={`https://solscan.io/account/${walletPublicKey.toBase58()}`}
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-400 hover:underline text-sm mt-1 inline-block"
                   >
                     View on Solscan
                   </a>
+                  )} {/* Add missing closing parenthesis */}
                 </div>
               )}
             </div>
@@ -421,30 +394,10 @@ export default function PerformanceDashboard({
         )}
       </div>
 
-      <div className="mt-6 pt-6 border-t border-gray-700">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <div className={`w-3 h-3 rounded-full mr-2 ${
-              botStatus === 'running' ? 'bg-green-500' : 
-              botStatus === 'ready' ? 'bg-yellow-500' : 'bg-red-500'
-            }`}></div>
-            <span className="text-gray-300">
-              Bot {botStatus === 'running' ? 'running' : botStatus === 'ready' ? 'not ready' : 'stopped'}
-            </span>
-          </div>
-          <button
-            onClick={() => setBotStatus(botStatus === 'running' ? 'stopped' : 'running')}
-            className={`px-4 py-2 rounded-md font-medium ${
-              botStatus === 'running' 
-                ? 'bg-red-600 hover:bg-red-700 text-white' 
-                : 'bg-green-600 hover:bg-green-700 text-white'
-            }`}
-            disabled={!isWalletConnected || botStatus === 'ready'}
-          >
-            {botStatus === 'running' ? 'Stop Bot' : 'Start Bot'}
-          </button>
-        </div>
-      </div>
+      {/* Remove redundant bot status/controls section */}
+      {/*
+      <div className="mt-6 pt-6 border-t border-gray-700"> ... </div>
+      */}
     </div>
   );
 }

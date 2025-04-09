@@ -1,38 +1,29 @@
 'use client';
 
-import { useState } from 'react'; // Removed useEffect
+import { useState } from 'react'; // Keep useState for currentSymbol
 import { useWallet } from '@solana/wallet-adapter-react'; // Import useWallet
 import dynamic from 'next/dynamic';
 import StrategyConfig from '@/components/StrategyConfig';
 import TradingChart from '@/components/TradingChart';
 import PerformanceDashboard from '@/components/PerformanceDashboard';
-import { StrategyParams } from '@/components/BotControl';
+// Remove unused StrategyParams import
+// import { StrategyParams } from '@/components/BotControl';
 
 // Dynamically import BotControl with no SSR to prevent wallet-related issues
 const BotControl = dynamic(() => import('@/components/BotControl'), { ssr: false });
 
 export default function Home() {
   // Get connection status from useWallet
-  const { connected } = useWallet(); 
+  const { connected } = useWallet();
   const [currentSymbol] = useState('SOLUSD');
-  const [strategyParams, setStrategyParams] = useState<StrategyParams>({
-    type: 'Multi-indicator',
-    indicators: [
-      { type: 'SMA', parameters: { period: 14 } },
-      { type: 'RSI', parameters: { period: 30 } },
-      { type: 'MACD', parameters: { fast: 12, slow: 26 } }
-    ],
-    amount: 0.5,
-    pair: 'SOL/USDC',
-    action: 'buy'
-  });
+  // Remove local state for strategyParams - managed by Zustand store now
+  // const [strategyParams, setStrategyParams] = useState<StrategyParams>(...);
 
   // Removed useEffect for manual connection checking
   // Removed manualConnect function
 
-  const handleStrategyUpdate = (newParams: StrategyParams) => {
-    setStrategyParams(newParams);
-  };
+  // Remove handler function - StrategyConfig updates store directly
+  // const handleStrategyUpdate = (newParams: StrategyParams) => { ... };
 
   return (
     <div className="flex flex-col space-y-8">
@@ -71,23 +62,22 @@ export default function Home() {
           <>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
               <div className="lg:col-span-1">
-                <StrategyConfig onStrategyUpdate={handleStrategyUpdate} />
+                {/* Remove onStrategyUpdate prop */}
+                <StrategyConfig />
                 <div className="mt-6">
-                  <BotControl strategyParams={strategyParams} />
+                  {/* Remove strategyParams prop - BotControl will use Zustand store */}
+                  <BotControl />
                 </div>
               </div>
               <div className="lg:col-span-2">
+                {/* Keep TradingChart for now, can be removed/replaced later if needed */}
                 <TradingChart symbol={currentSymbol} />
               </div>
             </div>
 
             <div className="mt-8">
-              <PerformanceDashboard
-                allocatedCapital={100}
-                maxDrawdown={20}
-                profitTarget={30}
-                slippage={0.5}
-              />
+              {/* Remove props as PerformanceDashboard now uses Zustand store */}
+              <PerformanceDashboard />
             </div>
           </>
         )}
